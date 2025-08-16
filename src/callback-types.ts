@@ -28,8 +28,7 @@ export interface CallbackFunctionEx<
   params?: any[];
   hash?: string;
   toCallbackData: () => string;
-  inlineButton(text: string): InlineKeyboardButton.CallbackButton;
-  replyButton(text: string): KeyboardButton.CommonButton;
+  button(text: string): InlineKeyboardButton.CallbackButton & KeyboardButton.CommonButton;
 }
 
 export interface CurriedCallback<

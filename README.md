@@ -16,17 +16,29 @@ Callback handling for Grammy Telegram bots. No callback data strings, no parsing
 
 ```typescript
 // Before: Manual callback data handling
-const button = { text: 'Edit User', callback_data: 'edit_user_123' };
+  async editUser(ctx, userId: number) {
+    // ...user operations
+  }
+
+const button = InlineKeyboard.text('Edit User', 'edit_user_123');
 bot.on('callback_query', (ctx) => {
   const [action, userId] = ctx.callbackQuery.data.split('_');
   if (action === 'edit' && userId) {
     await editUser(ctx, parseInt(userId));
   }
 });
+ctx.reply('text', { reply_keyboard: InlineKeyboard.from([[button]]) })
 
 // After: Direct function binding
-const handlers = cbs({ editUser });
+const handlers = cbs({ 
+  async editUser(ctx, userId: number) {
+    // ...user operations
+  }
+ });
+ // bind our handler to the button with some curried param.
 const button = Button.cb('Edit User', handlers.editUser(123));
+ctx.reply('text', { reply_keyboard: InlineKeyboard.from([[button]]) })
+// when user activates the button - we intercept callback_data, and call handler with exact curried params
 ```
 
 Works with any data size:
@@ -113,9 +125,14 @@ const editUserWithId = editUser(123);
 // Use in buttons
 const keyboard = [
   [Button.cb('Edit User 123', editUserWithId())],
-  [Button.cb('Delete User 456', deleteUser(456))],
-  [Button.cb('Edit with extra', editUser(789, 'special'))],
+  [deleteUser(456).button('Delete User 456'))],
+  [editUser(789, 'special').button('Edit with extra')],
 ];
+
+// Pass context as first param and call immediately as simple callback function:
+await deleteUser(ctx, 456);
+await handlers.handleUserAction(ctx, 'edit', 456, 'extra');
+
 ```
 
 ### Organizing Handlers
@@ -236,8 +253,7 @@ const fullHandler = partialHandler(42);
 ```
 
 #### `bindCbs()`
-Returns a function that can convert callback objects to curried versions with a specific context type. Useful for custom context types.
-
+Returns a function with your own Context type, bound to all the handlers, it will create. It can convert callback objects to curried versions with a specific context type.
 ```typescript
 // bot-context.ts – Define your custom context type
 export type MyBotContext = Context & {
@@ -245,20 +261,20 @@ export type MyBotContext = Context & {
   db: DatabaseConnection;
 };
 
-// Create type-safe callback binder
+// Create type-safe callback binder, pass your Context type
 export const cbs = bindCbs<MyBotContext>();
 
 // some bot file
 import { cbs } from './bot-context';
 // Now all handlers will be typed with your custom context
 const handlers = cbs({
-  async saveUser(ctx) {
+  async saveUser(ctx) { // ctx: MyBotContext
     // ctx.user and ctx.db are fully typed here
     await ctx.db.save(ctx.user);
     await ctx.reply(`Saved user ${ctx.user.name}`);
   },
   
-  async updateProfile(ctx, newName: string) {
+  async updateProfile(ctx, newName: string) { // ctx: MyBotContext
     // Full type safety with custom context
     ctx.user.name = newName;
     await ctx.db.update(ctx.user);
@@ -296,14 +312,6 @@ const handlers = cbs({ myHandler });
 const button = Button.cb('Click me', handlers.myHandler('param'));
 ```
 
-#### `Button.rcb(text, callbackData)`
-Create a reply keyboard button with callback data.
-
-```typescript
-const handlers = cbs({ myHandler });
-const button = Button.rcb('Click me', handlers.myHandler('param'));
-```
-
 ### Middleware
 
 #### `callbackMiddleware(ctx, next)`
@@ -319,10 +327,14 @@ Options for configuring wait behavior:
 
 ```typescript
 interface WaitOptions {
+  // validator handler to pre-filter handled messages
   validator?: CurriedCallback<boolean | string>;
-  filter?: FilterQuery[];
+  // array of telegram update types, you want to accept in handler: 
+  filter?: FilterQuery[];  // ['message:text', 'callback_query:data', 'message:picture']
   messageId?: number;
+  // text to send to cancel input wait
   cancelKeyword?: string;
+  // wait timeout, after that time, handler will not be called
   timeoutMs?: number;
 }
 ```
@@ -332,7 +344,6 @@ interface WaitOptions {
 See the `examples/` directory for complete examples:
 
 - `simple-bot.ts` - Basic usage with callbacks and wait functionality
-- `advanced-usage.ts` - Advanced patterns and techniques
 
 ## Best Practices
 

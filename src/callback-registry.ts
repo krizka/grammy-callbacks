@@ -68,8 +68,7 @@ function createCurried<R, T extends any[], Ctx extends CallbackContext>(
   curried.origin = parent.origin;
   curried.params = accumulatedParams;
   curried.toCallbackData = toCallbackData;
-  curried.inlineButton = (text: string) => Button.cb(text, curried as any);
-  curried.replyButton = (text: string) => Button.rcb(text, curried as any);
+  curried.button = (text: string) => Button.cb(text, curried as any);
 
   return curried as unknown as CurriedCallback<R, T, Ctx>;
 }
@@ -321,10 +320,6 @@ export const Button = {
       callback_data: data,
       // @ts-ignore duplicate, coz it grammy cut out known fields
       _callback_data: data,
-    } as InlineKeyboardButton.CallbackButton;
-  },
-
-  rcb: (text: string, callback: CallbackFunctionEx<any>): KeyboardButton.CommonButton => {
-    return { text, _callback_data: callback.toCallbackData() } as KeyboardButton.CommonButton;
+    } as (InlineKeyboardButton.CallbackButton & KeyboardButton.CommonButton);
   },
 };

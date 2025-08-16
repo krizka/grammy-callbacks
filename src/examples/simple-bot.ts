@@ -1,20 +1,12 @@
 import { Bot, InlineKeyboard, session } from 'grammy';
-import {
-  bindCbs,
-  Button,
-  type CallbackContext,
-  setupCallbacks,
-  cb,
-  wait,
-  waitMiddleware,
-} from '..';
+import { bindCbs, Button, type CallbackContext, setupCallbacks, wait, waitMiddleware } from '..';
 
 const cbs = bindCbs<BotContext>();
 
 // Type for our bot context
 type BotContext = CallbackContext & {
   session: {
-    cb: any;
+    cb: unknown;
     settings?: {
       notifications: boolean;
       darkMode: boolean;
@@ -44,13 +36,12 @@ const handlers = cbs({
           `Email: ${profile.email || 'Not set'}\n\n` +
           `Use the buttons below to edit your profile.`,
         {
-          reply_markup: {
-            inline_keyboard: [
-              [handlers.profile.editName().inlineButton('✏️ Edit Name')],
-              [Button.cb('📧 Edit Email', handlers.profile.editEmail())],
-              [Button.cb('🏠 Back to Home', handlers.home.show('param value'))],
-            ],
-          },
+          reply_markup: InlineKeyboard.from([
+            [handlers.profile.editName().button('✏️ Edit Name')],
+            [Button.cb('📧 Edit Email', handlers.profile.editEmail())],
+            [Button.cb('🏠 Back to Home', handlers.home.show())],
+            [InlineKeyboard.text('🔄 Refresh', 'refresh')],
+          ]),
           parse_mode: 'Markdown',
         },
       );
@@ -128,7 +119,7 @@ const handlers = cbs({
                 handlers.settings.toggleDarkMode,
               ),
             ],
-            [Button.cb('🏠 Back to Home', handlers.home.show('some param'))],
+            [handlers.home.show().button('🏠 Back to Home')],
           ]),
           parse_mode: 'Markdown',
         },
@@ -249,7 +240,7 @@ const handlers = cbs({
   },
 
   home: {
-    async show(ctx, param?: string) {
+    async show(ctx) {
       const username = ctx.from?.username || ctx.from?.first_name || 'User';
 
       const messageText =
@@ -308,13 +299,13 @@ export function createSimpleBot(token: string) {
 
   // Setup callback middleware
   setupCallbacks(bot);
-  bot.use(waitMiddleware);
 
   // Command handlers
   bot.command('start', handlers.home.show());
   bot.command('help', handlers.help.show());
   bot.command('demo', handlers.demo.start());
 
+  bot.use(waitMiddleware);
   // Handle errors gracefully
   bot.catch((err) => {
     console.error('❌ Bot error:', err);
@@ -344,21 +335,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   const bot = createSimpleBot(token);
+  await bot.init();
 
-  console.log('🚀 Starting Grammy Callbacks demo bot...');
+  console.log(`✅ Bot init successfully! https://t.me/${bot.botInfo.username}`);
+  console.log('🎯 Try the following commands:');
+  console.log('   /start - Main menu');
+  console.log('   /demo - Interactive demo');
+  console.log('   /help - Help information');
 
-  bot
-    .start()
-    .then(async () => {
-      const botInfo = await bot.api.getMe();
-      console.log(`✅ Bot started successfully! https://t.me/${botInfo.username}`);
-      console.log('🎯 Try the following commands:');
-      console.log('   /start - Main menu');
-      console.log('   /demo - Interactive demo');
-      console.log('   /help - Help information');
-    })
-    .catch((err) => {
-      console.error('❌ Failed to start bot:', err);
-      process.exit(1);
-    });
+  bot.start();
 }
