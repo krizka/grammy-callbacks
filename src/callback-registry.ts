@@ -6,7 +6,7 @@ import {
 } from './callback-types';
 import { md5Hex } from './utils/md5';
 import { SessionFlavor } from './lib-adapter';
-import type { InlineKeyboardButton, KeyboardButton } from './lib-adapter';
+import type { Context, InlineKeyboardButton, KeyboardButton } from './lib-adapter';
 
 // Global registry for callbacks
 const callbackRegistry: Record<string, CallbackFunction<any>> = {};
@@ -41,11 +41,11 @@ function toCallbackData(this: CallbackFunctionEx<any>) {
 
 export const BotContextSymbol = Symbol('bot-context');
 
-export function isCtx(ctx: CallbackContext) {
+export function isCtx(ctx: Context) {
   return !!ctx && typeof ctx === 'object' && BotContextSymbol in ctx;
 }
 
-function createCurried<R, T extends any[], Ctx extends CallbackContext>(
+function createCurried<R, T extends any[], Ctx extends Context>(
   parent: CallbackFunctionEx<R, T, Ctx>,
   accumulatedParams?: any[],
 ): CurriedCallback<R, T, Ctx> {
@@ -78,7 +78,7 @@ function createCurried<R, T extends any[], Ctx extends CallbackContext>(
  * @param callback The callback function to register
  * @returns A curried function that accumulates params until ctx is provided
  */
-export function cb<R, T extends any[], Ctx extends CallbackContext>(
+export function cb<R, T extends any[], Ctx extends Context>(
   callback: CallbackFunction<R, T, Ctx>,
 ): CurriedCallback<R, T, Ctx> {
   const hash = calculateFunctionHash(callback);
@@ -115,7 +115,7 @@ function calculateFunctionHashWithPath(fn: Function, path: string): string {
  * is a CallbackFunction with the corresponding CurriedCallback, while keeping
  * the original object structure intact.
  */
-export type DeepCurried<T, Ctx extends CallbackContext = CallbackContext> =
+export type DeepCurried<T, Ctx extends Context = Context> =
   T extends CallbackFunction<infer R, infer P, any>
     ? CurriedCallback<R, P, Ctx>
     : T extends Array<infer U>
@@ -146,7 +146,7 @@ export type DeepCurried<T, Ctx extends CallbackContext = CallbackContext> =
  *
  * callbacks.shop.open(ctx) //⇒ executes and registers automatically
  */
-export function cbs<O extends Record<string, any>, Ctx extends CallbackContext = CallbackContext>(
+export function cbs<O extends Record<string, any>, Ctx extends Context = Context>(
   callbacksObj: O,
 ): DeepCurried<O, Ctx> {
   const walk = (obj: any, parentPath = ''): any => {
@@ -188,7 +188,7 @@ export function cbs<O extends Record<string, any>, Ctx extends CallbackContext =
  * @param ctx The Telegram router context
  */
 export async function executeCallback(
-  ctx: CallbackContext,
+  ctx: Context,
   callbackData: string,
   ...args: any[]
 ): Promise<any> {
@@ -198,7 +198,7 @@ export async function executeCallback(
 
   // session hash with params
   if (prefix === '_ch') {
-    const sessionData = ctx.session.cb.params[hash];
+    const sessionData = (ctx as CallbackContext).session.cb.params[hash];
     if (!sessionData) {
       throw new Error(`Session callback ${hash} not found`);
     }
@@ -226,14 +226,14 @@ export function isCurriedCallback(filter: any): filter is CurriedCallback<any> {
   return typeof filter === 'function' && 'toCallbackData' in filter;
 }
 
-export async function handleText(ctx: CallbackContext, next: () => Promise<void>): Promise<void> {
+export async function handleText(ctx: Context, next: () => Promise<void>): Promise<void> {
   const text = ctx.message?.text;
   if (!text) {
     return next();
   }
 
   // Check if text matches any registered reply callback
-  const callbackData = ctx.session.cb.reply[text];
+  const callbackData = (ctx as CallbackContext).session.cb.reply[text];
   if (callbackData) {
     const executed = await executeCallback(ctx, callbackData);
     if (executed !== false) {
@@ -286,11 +286,11 @@ export function storeCallbackData(ctx: SessionFlavor<any>, cbData: string): stri
   return `_ch:${sessionHash}`;
 }
 
-export function bindCb<Ctx extends CallbackContext>() {
+export function bindCb<Ctx extends Context>() {
   return <R, T extends any[]>(callback: CallbackFunction<R, T, Ctx>) => cb(callback);
 }
 
-export type DeepCallbacksObj<Ctx extends CallbackContext = CallbackContext> =
+export type DeepCallbacksObj<Ctx extends Context = Context> =
   | ((ctx: Ctx, ...args: any[]) => any)
   | { [key: string]: DeepCallbacksObj<Ctx> }
   | DeepCallbacksObj<Ctx>[];
@@ -299,7 +299,7 @@ export type DeepCallbacksObj<Ctx extends CallbackContext = CallbackContext> =
  * Bind callbacks object with a specific context type
  * @returns A function that can convert callback objects to curried versions
  */
-export function bindCbs<Ctx extends CallbackContext>() {
+export function bindCbs<Ctx extends Context>() {
   return <O extends DeepCallbacksObj<Ctx>>(callbacksObj: O) => cbs<O, Ctx>(callbacksObj);
 }
 
@@ -320,6 +320,6 @@ export const Button = {
       callback_data: data,
       // @ts-ignore duplicate, coz it grammy cut out known fields
       _callback_data: data,
-    } as (InlineKeyboardButton.CallbackButton & KeyboardButton.CommonButton);
+    } as InlineKeyboardButton.CallbackButton & KeyboardButton.CommonButton;
   },
 };

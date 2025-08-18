@@ -1,6 +1,6 @@
 import { executeCallback, isCurriedCallback } from './callback-registry';
 import type { CallbackContext, CurriedCallback } from './callback-types';
-import type { FilterQuery } from './lib-adapter';
+import type { Context, FilterQuery } from './lib-adapter';
 
 /**
  * Wait options for collecting user input
@@ -16,25 +16,31 @@ export interface WaitOptions {
 /**
  * Clear prompt state
  */
-export function clearWaitState(ctx: CallbackContext): void {
-  if (ctx.session.cb.wait?.messageId) {
-    ctx.deleteMessages([ctx.session.cb.wait.messageId]);
+export function clearWaitState(ctx: Context): void {
+  const callbackCtx = ctx as CallbackContext;
+
+  if (callbackCtx.session.cb.wait?.messageId) {
+    ctx.deleteMessages([callbackCtx.session.cb.wait.messageId]);
   }
-  delete ctx.session.cb.wait;
+  delete callbackCtx.session.cb.wait;
 }
 
-type WaitCallback = CurriedCallback<any, [string]>;
+type WaitCallback<Ctx extends Context> = CurriedCallback<any, [string], Ctx>;
 
-export function wait(
-  ctx: CallbackContext,
-  filter: FilterQuery | FilterQuery[] | WaitCallback,
-  handler: WaitCallback,
+export function wait<Ctx extends Context>(
+  ctx: Ctx,
+  filter: FilterQuery | FilterQuery[] | WaitCallback<Ctx>,
+  handler: WaitCallback<Ctx>,
 ): void;
-export function wait(ctx: CallbackContext, handler: WaitCallback, waitOptions?: WaitOptions): void;
-export function wait(
-  ctx: CallbackContext,
-  filter: FilterQuery | FilterQuery[] | WaitCallback,
-  handlerOrOptions?: WaitCallback | WaitOptions,
+export function wait<Ctx extends Context>(
+  ctx: Ctx,
+  handler: WaitCallback<Ctx>,
+  waitOptions?: WaitOptions,
+): void;
+export function wait<Ctx extends Context>(
+  ctx: Ctx,
+  filter: FilterQuery | FilterQuery[] | WaitCallback<Ctx>,
+  handlerOrOptions?: WaitCallback<Ctx> | WaitOptions,
   waitOptions?: WaitOptions,
 ): void;
 
@@ -46,23 +52,23 @@ export function wait(
  * @param handlerOrOptions - Handler function or wait options
  * @param waitOptions - Additional wait options
  */
-export function wait(
-  ctx: CallbackContext,
-  filter: FilterQuery | FilterQuery[] | WaitCallback,
-  handlerOrOptions?: WaitCallback | WaitOptions,
+export function wait<Ctx extends Context>(
+  ctx: Context,
+  filter: FilterQuery | FilterQuery[] | WaitCallback<Ctx>,
+  handlerOrOptions?: WaitCallback<Ctx> | WaitOptions,
   waitOptions?: WaitOptions,
 ): void {
   clearWaitState(ctx);
 
-  let handler: WaitCallback = handlerOrOptions as WaitCallback;
+  let handler: WaitCallback<Ctx> = handlerOrOptions as WaitCallback<Ctx>;
   if (isCurriedCallback(filter)) {
     waitOptions = handler as WaitOptions;
-    handler = filter as WaitCallback;
+    handler = filter as WaitCallback<Ctx>;
     filter = ['message:text'];
   }
 
   // Store wait state
-  ctx.session.cb.wait = {
+  (ctx as CallbackContext).session.cb.wait = {
     messageId: waitOptions?.messageId || 0,
     cancelKeyword: waitOptions?.cancelKeyword || '/cancel',
     filter: Array.isArray(filter) ? (filter as FilterQuery[]) : [filter as FilterQuery],
@@ -75,8 +81,8 @@ export function wait(
  * Handle text messages for prompts
  * @returns true if the message was handled as a prompt response, false otherwise
  */
-export async function handleWaitResponse(ctx: CallbackContext): Promise<boolean> {
-  const promptState = ctx.session.cb?.wait;
+export async function handleWaitResponse(ctx: Context): Promise<boolean> {
+  const promptState = (ctx as CallbackContext).session.cb?.wait;
 
   if (!promptState) return false;
 
@@ -110,7 +116,7 @@ export async function handleWaitResponse(ctx: CallbackContext): Promise<boolean>
     return true;
   }
 
-  if (ctx.session.cb.wait === promptState) {
+  if ((ctx as CallbackContext).session.cb.wait === promptState) {
     clearWaitState(ctx);
   }
 
@@ -120,10 +126,7 @@ export async function handleWaitResponse(ctx: CallbackContext): Promise<boolean>
 /**
  * Middleware to handle wait responses
  */
-export async function waitMiddleware(
-  ctx: CallbackContext,
-  next: () => Promise<void>,
-): Promise<void> {
+export async function waitMiddleware(ctx: Context, next: () => Promise<void>): Promise<void> {
   if (!(await handleWaitResponse(ctx))) {
     return next();
   }

@@ -1,12 +1,9 @@
-import { Bot, InlineKeyboard, session } from 'grammy';
-import { bindCbs, Button, type CallbackContext, setupCallbacks, wait, waitMiddleware } from '..';
-
-const cbs = bindCbs<BotContext>();
+import { Bot, Context, InlineKeyboard, session, SessionFlavor } from 'grammy';
+import { bindCbs, Button, setupCallbacks, wait, waitMiddleware } from '..';
 
 // Type for our bot context
-type BotContext = CallbackContext & {
-  session: {
-    cb: unknown;
+type BotContext = Context &
+  SessionFlavor<{
     settings?: {
       notifications: boolean;
       darkMode: boolean;
@@ -16,8 +13,9 @@ type BotContext = CallbackContext & {
       name?: string;
       email?: string;
     };
-  };
-};
+  }>;
+
+const cbs = bindCbs<BotContext>();
 
 // // Create callback wrapper with proper typing
 // function createCb<T extends any[]>(fn: (ctx: BotContext, ...args: T) => Promise<void>) {
@@ -58,7 +56,8 @@ const handlers = cbs({
       await ctx.answerCallbackQuery();
 
       // Wait for user input
-      wait(ctx, handlers.profile.saveName());
+      const handler = handlers.profile.saveName();
+      wait(ctx, handler);
     },
 
     async saveName(ctx, name: string) {
@@ -289,13 +288,7 @@ export function createSimpleBot(token: string) {
   const bot = new Bot<BotContext>(token);
 
   // Setup session middleware (required for callbacks)
-  bot.use(
-    session({
-      initial: (): BotContext['session'] => ({
-        cb: { reply: {}, params: {} },
-      }),
-    }),
-  );
+  bot.use(session({}));
 
   // Setup callback middleware
   setupCallbacks(bot);

@@ -12,16 +12,15 @@ export interface WaitState {
   timeoutId: number;
 }
 
-export type CallbackFunction<
-  R = void,
-  T extends any[] = any[],
-  Ctx extends CallbackContext = CallbackContext,
-> = (ctx: Ctx, ...args: T) => Promise<R>;
+export type CallbackFunction<R = void, T extends any[] = any[], Ctx extends Context = Context> = (
+  ctx: Ctx,
+  ...args: T
+) => Promise<R>;
 
 export interface CallbackFunctionEx<
   R = void,
   T extends any[] = any[],
-  Ctx extends CallbackContext = CallbackContext,
+  Ctx extends Context = Context,
 > extends CallbackFunction<R, T, Ctx> {
   origin: CallbackFunctionEx<R, T>;
   curried?: CurriedCallback<R, T>;
@@ -31,11 +30,8 @@ export interface CallbackFunctionEx<
   button(text: string): InlineKeyboardButton.CallbackButton & KeyboardButton.CommonButton;
 }
 
-export interface CurriedCallback<
-  R = void,
-  T extends any[] = [],
-  Ctx extends CallbackContext = CallbackContext,
-> extends CallbackFunctionEx<R, T, Ctx> {
+export interface CurriedCallback<R = void, T extends any[] = [], Ctx extends Context = Context>
+  extends CallbackFunctionEx<R, T, Ctx> {
   // Explicit overload for context first (immediate execution)
   (ctx: Ctx, ...args: T): Promise<R>;
 
