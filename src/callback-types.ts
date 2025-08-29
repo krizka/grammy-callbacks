@@ -65,3 +65,7 @@ export interface CallbackSessionData {
 
   lastHash?: string;
 }
+
+export interface CallbacksOptions<Ctx extends Context> {
+  getSessionData(ctx: Ctx): CallbackSessionData;
+}

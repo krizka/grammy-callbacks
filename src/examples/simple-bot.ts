@@ -288,7 +288,7 @@ export function createSimpleBot(token: string) {
   const bot = new Bot<BotContext>(token);
 
   // Setup session middleware (required for callbacks)
-  bot.use(session({}));
+  bot.use(session({ initial: () => ({}) }));
 
   // Setup callback middleware
   setupCallbacks(bot);

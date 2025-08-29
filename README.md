@@ -16,7 +16,7 @@ Callback handling for Grammy Telegram bots. No callback data strings, no parsing
 
 ```typescript
 // Before: Manual callback data handling
-  async editUser(ctx, userId: number) {
+  async function editUser(ctx: Context, userId: number) {
     // ...user operations
   }
 
@@ -31,7 +31,7 @@ ctx.reply('text', { reply_keyboard: InlineKeyboard.from([[button]]) })
 
 // After: Direct function binding
 const handlers = cbs({ 
-  async editUser(ctx, userId: number) {
+  async editUser(ctx, userId: number) { // ctx already typed
     // ...user operations
   }
  });
@@ -55,7 +55,10 @@ npm install grammy-callbacks grammy
 
 ## Requirements
 
-⚠️ **Grammy Callbacks requires session middleware to be configured.** The library stores callback data and wait states in the session, so you must set up Grammy's session middleware before using this package.
+⚠️ **Grammy Callbacks requires session middleware to be configured.**
+The library stores callback data and wait states in the session, 
+so you must set up Grammy's session middleware before using this package.
+Instead - it will warn you and use internal caches
 
 ```typescript
 import { session } from 'grammy';
@@ -82,17 +85,26 @@ const handlers = cbs({
   async greetUser(ctx, name: string, age: number) {
     await ctx.answerCallbackQuery();
     await ctx.reply(`Hello ${name}! You are ${age} years old.`);
+  },
+  
+  async greetSomeoneSpecial(ctx) {
+    // use as simple handlers by passing ctx as first param.
+    await handlers.greetUser(ctx, 'Special', 42); 
+    // or by currying
+    await handlers.greetUser('Special', 42)(ctx);
+    // or
+    await handlers.greetUser('Special')(42)(ctx);
   }
 });
 
-// Use in inline keyboard
+// Use curried handlers in inline keyboard
 bot.command('start', async (ctx) => {
   await ctx.reply('Choose an option:', {
     reply_markup: {
-      inline_keyboard: [[
-        Button.cb('Greet John (25)', handlers.greetUser('John', 25)),
-        Button.cb('Greet Jane (30)', handlers.greetUser('Jane', 30))
-      ]]
+      inline_keyboard: [
+        [Button.cb('Greet John (25)', handlers.greetUser('John', 25))], // use helper
+        [handlers.greetUser('Jane', 30).button('Greet Jane (30)')], // or direct call 
+      ]
     }
   });
 });
@@ -125,7 +137,7 @@ const editUserWithId = editUser(123);
 // Use in buttons
 const keyboard = [
   [Button.cb('Edit User 123', editUserWithId())],
-  [deleteUser(456).button('Delete User 456'))],
+  [deleteUser(456).button('Delete User 456')],
   [editUser(789, 'special').button('Edit with extra')],
 ];
 

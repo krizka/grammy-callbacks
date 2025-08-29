@@ -3,6 +3,7 @@ import {
   CallbackFunction,
   CallbackFunctionEx,
   CurriedCallback,
+  type CallbackSessionData,
 } from './callback-types';
 import { md5Hex } from './utils/md5';
 import { SessionFlavor } from './lib-adapter';
@@ -56,7 +57,7 @@ function createCurried<R, T extends any[], Ctx extends Context>(
 
       const params = curried.params ? curried.params.concat(args) : args;
 
-      ctx.session.cb.lastHash = parent.origin.hash;
+      getSessionData(ctx).lastHash = parent.origin.hash;
       return parent.origin(ctx, ...(params as T));
     } else {
       // No ctx provided, accumulate parameters and return new curried function
@@ -198,7 +199,7 @@ export async function executeCallback(
 
   // session hash with params
   if (prefix === '_ch') {
-    const sessionData = (ctx as CallbackContext).session.cb.params[hash];
+    const sessionData = getSessionData(ctx).params[hash];
     if (!sessionData) {
       throw new Error(`Session callback ${hash} not found`);
     }
@@ -226,6 +227,9 @@ export function isCurriedCallback(filter: any): filter is CurriedCallback<any> {
   return typeof filter === 'function' && 'toCallbackData' in filter;
 }
 
+export const getSessionData = (ctx: any): CallbackSessionData => ((ctx as any)._getSessionData)(ctx);
+
+
 export async function handleText(ctx: Context, next: () => Promise<void>): Promise<void> {
   const text = ctx.message?.text;
   if (!text) {
@@ -233,7 +237,7 @@ export async function handleText(ctx: Context, next: () => Promise<void>): Promi
   }
 
   // Check if text matches any registered reply callback
-  const callbackData = (ctx as CallbackContext).session.cb.reply[text];
+  const callbackData = getSessionData(ctx).reply[text];
   if (callbackData) {
     const executed = await executeCallback(ctx, callbackData);
     if (executed !== false) {
@@ -281,7 +285,7 @@ export function storeCallbackData(ctx: SessionFlavor<any>, cbData: string): stri
   }
 
   const sessionHash = generateHash(paramsJson);
-  ctx.session.cb.params[sessionHash] = { hash, params: paramsJson };
+  getSessionData(ctx).params[sessionHash] = { hash, params: paramsJson };
 
   return `_ch:${sessionHash}`;
 }

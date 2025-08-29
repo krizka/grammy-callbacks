@@ -1,4 +1,4 @@
-import { executeCallback, isCurriedCallback } from './callback-registry';
+import { executeCallback, getSessionData, isCurriedCallback } from './callback-registry';
 import type { CallbackContext, CurriedCallback } from './callback-types';
 import type { Context, FilterQuery } from './lib-adapter';
 
@@ -19,10 +19,12 @@ export interface WaitOptions {
 export function clearWaitState(ctx: Context): void {
   const callbackCtx = ctx as CallbackContext;
 
-  if (callbackCtx.session.cb.wait?.messageId) {
-    ctx.deleteMessages([callbackCtx.session.cb.wait.messageId]);
+  const sessionData = getSessionData(ctx);
+
+  if (sessionData.wait?.messageId) {
+    ctx.deleteMessages([sessionData.wait.messageId]);
   }
-  delete callbackCtx.session.cb.wait;
+  delete sessionData.wait;
 }
 
 type WaitCallback<Ctx extends Context> = CurriedCallback<any, [string], Ctx>;
@@ -68,7 +70,7 @@ export function wait<Ctx extends Context>(
   }
 
   // Store wait state
-  (ctx as CallbackContext).session.cb.wait = {
+  getSessionData(ctx).wait = {
     messageId: waitOptions?.messageId || 0,
     cancelKeyword: waitOptions?.cancelKeyword || '/cancel',
     filter: Array.isArray(filter) ? (filter as FilterQuery[]) : [filter as FilterQuery],
@@ -82,7 +84,7 @@ export function wait<Ctx extends Context>(
  * @returns true if the message was handled as a prompt response, false otherwise
  */
 export async function handleWaitResponse(ctx: Context): Promise<boolean> {
-  const promptState = (ctx as CallbackContext).session.cb?.wait;
+  const promptState = getSessionData(ctx).wait;
 
   if (!promptState) return false;
 
@@ -116,7 +118,7 @@ export async function handleWaitResponse(ctx: Context): Promise<boolean> {
     return true;
   }
 
-  if ((ctx as CallbackContext).session.cb.wait === promptState) {
+  if (getSessionData(ctx).wait === promptState) {
     clearWaitState(ctx);
   }
 

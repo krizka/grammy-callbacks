@@ -1,6 +1,7 @@
-import { BotContextSymbol, executeCallback, handleText } from './callback-registry';
-import { CallbackContext, CallbackSessionData } from './callback-types';
-import type { Bot } from './lib-adapter';
+import { SessionFlavor } from 'grammy';
+import { BotContextSymbol, executeCallback, getSessionData, handleText } from './callback-registry';
+import { CallbackContext, CallbackSessionData, CallbacksOptions } from './callback-types';
+import type { Bot, Context } from './lib-adapter';
 
 export function initialCallbackData(): CallbackSessionData {
   return {
@@ -9,12 +10,25 @@ export function initialCallbackData(): CallbackSessionData {
   };
 }
 
-function isCallbackData(data: string): boolean {
+function isCallbackData(data?: string): data is string {
   return typeof data === 'string' && (data.startsWith('_cb:') || data.startsWith('_ch:'));
 }
 
-export function setupCallbacks(bot: Bot<any>): void {
-  const contextCache: Record<number, CallbackContext> = ((bot as any).contextCache = {});
+const sessionCache: Record<number, CallbackSessionData> = {};
+function defaultGetSessionData(ctx: any): CallbackSessionData {
+  const fromId = ctx.from?.id;
+  if (!fromId)
+    throw new Error('Cannot get session data from context without fromId, dont use it there'); // like for updates
+
+  return ctx.session ? ctx.session : (sessionCache[fromId] ??= initialCallbackData());
+}
+
+export function setupCallbacks<Ctx extends Context>(
+  bot: Bot<Ctx>,
+  options?: CallbacksOptions<Ctx>,
+): void {
+  const contextCache: Record<number, Ctx> = ((bot as any).contextCache = {});
+  const _getSessionData = options?.getSessionData ?? defaultGetSessionData;
 
   bot.api.config.use(async (call, method, payload: any, signal) => {
     if (payload.reply_markup?.keyboard && contextCache[payload.chat_id]) {
@@ -23,7 +37,7 @@ export function setupCallbacks(bot: Bot<any>): void {
       buttons.forEach((button: any) => {
         const data = button._callback_data || button.callback_data;
         if (data) {
-          ctx.session.cb.reply[button.text] = data;
+          getSessionData(ctx).reply[button.text] = data;
           delete button._callback_data;
           delete button.callback_data;
         }
@@ -34,10 +48,15 @@ export function setupCallbacks(bot: Bot<any>): void {
   });
 
   bot.use(async (ctx, next) => {
-    const fromId = ctx.from.id;
-    contextCache[fromId] = ctx;
+    const fromId = ctx.from?.id;
+    if (!fromId) return next();
 
-    ctx.session.cb ??= initialCallbackData();
+    contextCache[fromId] = ctx;
+    (ctx as any)._getSessionData = _getSessionData;
+
+    const ctxData = getSessionData(ctx);
+    if (!ctxData.reply) Object.assign(ctxData, initialCallbackData());
+
     Object.defineProperty(ctx, BotContextSymbol, { value: true, enumerable: false });
     await next();
 
