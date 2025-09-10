@@ -1,13 +1,13 @@
+import assert from 'assert';
 import {
-  CallbackContext,
   CallbackFunction,
   CallbackFunctionEx,
-  CurriedCallback,
   type CallbackSessionData,
+  CurriedCallback,
 } from './callback-types';
-import { md5Hex } from './utils/md5';
-import { SessionFlavor } from './lib-adapter';
 import type { Context, InlineKeyboardButton, KeyboardButton } from './lib-adapter';
+import { SessionFlavor } from './lib-adapter';
+import { md5Hex } from './utils/md5';
 
 // Global registry for callbacks
 const callbackRegistry: Record<string, CallbackFunction<any>> = {};
@@ -94,6 +94,23 @@ export function cb<R, T extends any[], Ctx extends Context>(
   return createCurried(cb) as CurriedCallback<R, T, Ctx>;
 }
 
+// use callstack to get the function name that registered the callback
+function getRegistrationFile() {
+  const lines = new Error().stack!.split('\n');
+  const idx = lines.findIndex((line) => line.includes('at cbs ('))!;
+  if (idx === -1) return '';
+
+  const nextLine = lines[idx + 1];
+  const fileNameRegEx = /\/([\w-]+).\w+:(\d+):(\d+)/;
+  const match = nextLine?.match(fileNameRegEx);
+
+  if (!match) return '';
+
+  return match[1];
+}
+
+const MAX_HASH_LENGTH = 30;
+
 /**
  * Calculate a hash for a function based on its name and path inside an object.
  * The resulting hash is stable for the same path and function name, making it
@@ -103,12 +120,17 @@ export function cb<R, T extends any[], Ctx extends Context>(
  * @param path The dot-separated path to the function in the source object.
  */
 function calculateFunctionHashWithPath(fn: Function, path: string): string {
-  const name = path || fn.name;
+  const name = getRegistrationFile() + '.' + (path || fn.name);
   const hash = md5Hex(name);
   // Keep the first part readable (function name truncated) and add md5 suffix for uniqueness
-  return name
-    ? name.slice(-12) + hash.slice(0, Math.max(4, 16 - fn.name.length))
-    : hash.slice(0, 16);
+  const result = name
+    ? name.slice(-(MAX_HASH_LENGTH - 4)) + hash.slice(0, Math.max(4, MAX_HASH_LENGTH - name.length))
+    : hash.slice(0, MAX_HASH_LENGTH);
+
+  // generate new, if changed
+  if (callbackRegistry[hash]) return calculateFunctionHashWithPath(fn, name + '1');
+
+  return result;
 }
 
 /**
@@ -155,7 +177,7 @@ export function cbs<O extends Record<string, any>, Ctx extends Context = Context
       const path = parentPath.replace(/^\./, ''); // remove leading dot
       const hash = calculateFunctionHashWithPath(obj, path);
 
-      if (callbackRegistry[hash]) throw new Error(`Callback with hash ${hash} already registered`);
+      assert(!callbackRegistry[hash], `Callback with hash ${hash} already registered`);
       // register in global registry
       callbackRegistry[hash] = obj;
 
@@ -227,8 +249,7 @@ export function isCurriedCallback(filter: any): filter is CurriedCallback<any> {
   return typeof filter === 'function' && 'toCallbackData' in filter;
 }
 
-export const getSessionData = (ctx: any): CallbackSessionData => ((ctx as any)._getSessionData)(ctx);
-
+export const getSessionData = (ctx: any): CallbackSessionData => (ctx as any)._getSessionData(ctx);
 
 export async function handleText(ctx: Context, next: () => Promise<void>): Promise<void> {
   const text = ctx.message?.text;
@@ -304,7 +325,7 @@ export type DeepCallbacksObj<Ctx extends Context = Context> =
  * @returns A function that can convert callback objects to curried versions
  */
 export function bindCbs<Ctx extends Context>() {
-  return <O extends DeepCallbacksObj<Ctx>>(callbacksObj: O) => cbs<O, Ctx>(callbacksObj);
+  return cbs as <O extends DeepCallbacksObj<Ctx>>(callbacksObj: O) => DeepCurried<O, Ctx>;
 }
 
 /**
@@ -314,9 +335,9 @@ export const Button = {
   /**
    * Create a button with callback data (works for both inline and reply)
    */
-  cb: (
+  cb: <Ctx extends Context = Context>(
     text: string,
-    callback: CallbackFunctionEx<any, []>,
+    callback: CallbackFunctionEx<any, [], Ctx>,
   ): InlineKeyboardButton.CallbackButton => {
     const data = callback.toCallbackData();
     return {

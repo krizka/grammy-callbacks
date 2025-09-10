@@ -26,6 +26,9 @@ const cbs = bindCbs<BotContext>();
 // Convert handlers to curried callbacks
 const handlers = cbs({
   profile: {
+    async withParam(ctx, param: string) {
+      await ctx.reply(`With param: ${param}`);
+    },
     async show(ctx) {
       const profile = ctx.session.userProfile || {};
       await ctx.editMessageText(
@@ -38,6 +41,7 @@ const handlers = cbs({
             [handlers.profile.editName().button('✏️ Edit Name')],
             [Button.cb('📧 Edit Email', handlers.profile.editEmail())],
             [Button.cb('🏠 Back to Home', handlers.home.show())],
+            [handlers.profile.withParam('test',).button('With param')],
             [InlineKeyboard.text('🔄 Refresh', 'refresh')],
           ]),
           parse_mode: 'Markdown',
