@@ -1,5 +1,5 @@
-import { executeCallback, getSessionData, isCurriedCallback } from './callback-registry';
-import type { CallbackContext, CurriedCallback } from './callback-types';
+import { executeCallback, getSessionData, isCurriedCallback } from './callbacks-registry';
+import type { CurriedCallback } from './callbacks-types';
 import type { Context, FilterQuery } from './lib-adapter';
 
 /**
@@ -17,8 +17,6 @@ export interface WaitOptions {
  * Clear prompt state
  */
 export function clearWaitState(ctx: Context): void {
-  const callbackCtx = ctx as CallbackContext;
-
   const sessionData = getSessionData(ctx);
 
   if (sessionData.wait?.messageId) {
@@ -72,7 +70,7 @@ export function wait<Ctx extends Context>(
   // Store wait state
   getSessionData(ctx).wait = {
     messageId: waitOptions?.messageId || 0,
-    cancelKeyword: waitOptions?.cancelKeyword || '/cancel',
+    cancelKeyword: (waitOptions?.cancelKeyword || '/cancelwait').toLowerCase(),
     filter: Array.isArray(filter) ? (filter as FilterQuery[]) : [filter as FilterQuery],
     handlerId: handler.toCallbackData(),
     timeoutId: 0, // TODO: implement timeout with callback registry
@@ -84,9 +82,9 @@ export function wait<Ctx extends Context>(
  * @returns true if the message was handled as a prompt response, false otherwise
  */
 export async function handleWaitResponse(ctx: Context): Promise<boolean> {
-  const promptState = getSessionData(ctx).wait;
+  const waitState = getSessionData(ctx).wait;
 
-  if (!promptState) return false;
+  if (!waitState) return false;
 
   // Check for cancel keyword
   let text;
@@ -96,20 +94,17 @@ export async function handleWaitResponse(ctx: Context): Promise<boolean> {
     text = ctx.callbackQuery.data;
   }
 
-  if (promptState.cancelKeyword) {
-    if (text && text.toLowerCase() === promptState.cancelKeyword.toLowerCase()) {
-      // Clear prompt state
-      clearWaitState(ctx);
-      return true;
-    }
+  if (text && text.toLowerCase() === waitState.cancelKeyword) {
+    clearWaitState(ctx);
+    return true;
   }
 
-  if (promptState.filter && !ctx.has(promptState.filter)) return false;
+  if (waitState.filter && !ctx.has(waitState.filter)) return false;
 
   // Execute handler
   if (
-    promptState.handlerId &&
-    (await executeCallback(ctx, promptState.handlerId, text).catch((err: any) => {
+    waitState.handlerId &&
+    (await executeCallback(ctx, waitState.handlerId, text).catch((err: any) => {
       // if any error occurred - clear the state, or good result, only on false will not clear
       console.warn('Error while waiting for data', err.stack);
       return true;
@@ -118,7 +113,8 @@ export async function handleWaitResponse(ctx: Context): Promise<boolean> {
     return true;
   }
 
-  if (getSessionData(ctx).wait === promptState) {
+  // if no new wait was enabled - clear current state
+  if (getSessionData(ctx).wait === waitState) {
     clearWaitState(ctx);
   }
 

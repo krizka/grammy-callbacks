@@ -37,23 +37,23 @@ export interface CurriedCallback<R = void, T extends any[] = [], Ctx extends Con
 
   // Explicit overloads for partial application up to length 4 (covers most use cases)
   (): CurriedCallback<R, T, Ctx>;
-  <P extends T[0]>(
-    arg1: P,
-  ): T extends [P, ...infer Rest] ? CurriedCallback<R, Rest, Ctx> : CurriedCallback<R, [], Ctx>;
-  <P1 extends T[0], P2 extends T[1]>(
+  <P1>(
+    arg1: P1,
+  ): T extends [P1, ...infer Rest] ? CurriedCallback<R, Rest, Ctx> : CurriedCallback<R, [], Ctx>;
+  <P1, P2>(
     arg1: P1,
     arg2: P2,
   ): T extends [P1, P2, ...infer Rest]
     ? CurriedCallback<R, Rest, Ctx>
     : CurriedCallback<R, [], Ctx>;
-  <P1 extends T[0], P2 extends T[1], P3 extends T[2]>(
+  <P1, P2, P3>(
     arg1: P1,
     arg2: P2,
     arg3: P3,
   ): T extends [P1, P2, P3, ...infer Rest]
     ? CurriedCallback<R, Rest, Ctx>
     : CurriedCallback<R, [], Ctx>;
-  <P1 extends T[0], P2 extends T[1], P3 extends T[2], P4 extends T[3]>(
+  <P1, P2, P3, P4>(
     arg1: P1,
     arg2: P2,
     arg3: P3,

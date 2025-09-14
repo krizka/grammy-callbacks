@@ -11,7 +11,7 @@ export {
   isCurriedCallback,
   handleText,
   storeCallbackData,
-} from './callback-registry';
+} from './callbacks-registry';
 
 // Export callback types
 export type {
@@ -21,13 +21,13 @@ export type {
   CurriedCallback,
   CallbackSessionData,
   WaitState,
-} from './callback-types';
+} from './callbacks-types';
 
 // Export types from callback registry
-export type { DeepCurried, DeepCallbacksObj } from './callback-registry';
+export type { DeepCurried, DeepCallbacksObj } from './callbacks-registry';
 
 // Export middleware
-export { setupCallbacks, initialCallbackData } from './callback-middleware';
+export { setupCallbacks, initialCallbackData } from './callbacks-middleware';
 
 // Export wait functionality
 export { wait, waitMiddleware, clearWaitState, handleWaitResponse } from './wait';

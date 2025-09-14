@@ -4,13 +4,13 @@ import {
   CallbackFunctionEx,
   type CallbackSessionData,
   CurriedCallback,
-} from './callback-types';
+} from './callbacks-types';
 import type { Context, InlineKeyboardButton, KeyboardButton } from './lib-adapter';
 import { SessionFlavor } from './lib-adapter';
 import { md5Hex } from './utils/md5';
 
 // Global registry for callbacks
-const callbackRegistry: Record<string, CallbackFunction<any>> = {};
+const callbacksRegistry: Record<string, CallbackFunction<any, any[], any>> = {};
 
 /**
  * Calculate a hash for a function
@@ -53,7 +53,7 @@ function createCurried<R, T extends any[], Ctx extends Context>(
   const curried = ((...args: any[]) => {
     // Check if first argument is a CallbackContext
     if (isCtx(args[0])) {
-      const ctx = args.shift();
+      const ctx = args.shift() as Ctx;
 
       const params = curried.params ? curried.params.concat(args) : args;
 
@@ -64,12 +64,12 @@ function createCurried<R, T extends any[], Ctx extends Context>(
       const params = curried.params ? curried.params.concat(args) : args;
       return createCurried(parent, params);
     }
-  }) as CallbackFunctionEx<R, T>;
+  }) as CallbackFunctionEx<R, T, Ctx>;
   // Add properties
   curried.origin = parent.origin;
   curried.params = accumulatedParams;
   curried.toCallbackData = toCallbackData;
-  curried.button = (text: string) => Button.cb(text, curried as any);
+  curried.button = (text: string) => Button.cb(text, curried);
 
   return curried as unknown as CurriedCallback<R, T, Ctx>;
 }
@@ -85,13 +85,13 @@ export function cb<R, T extends any[], Ctx extends Context>(
   const hash = calculateFunctionHash(callback);
 
   // Register the callback in the global registry
-  callbackRegistry[hash] = callback as CallbackFunction<any>;
+  callbacksRegistry[hash] = callback as CallbackFunction<any, any[], any>;
 
-  const cb = callback as CallbackFunctionEx<R, T>;
-  cb.origin = cb;
-  cb.hash = hash;
+  const cbEx = callback as CallbackFunctionEx<R, T, Ctx>;
+  cbEx.origin = cbEx as CallbackFunctionEx<R, T>;
+  cbEx.hash = hash;
 
-  return createCurried(cb) as CurriedCallback<R, T, Ctx>;
+  return createCurried(cbEx) as CurriedCallback<R, T, Ctx>;
 }
 
 // use callstack to get the function name that registered the callback
@@ -128,7 +128,7 @@ function calculateFunctionHashWithPath(fn: Function, path: string): string {
     : hash.slice(0, MAX_HASH_LENGTH);
 
   // generate new, if changed
-  if (callbackRegistry[hash]) return calculateFunctionHashWithPath(fn, name + '1');
+  if (callbacksRegistry[result]) return calculateFunctionHashWithPath(fn, name + '1');
 
   return result;
 }
@@ -177,11 +177,11 @@ export function cbs<O extends Record<string, any>, Ctx extends Context = Context
       const path = parentPath.replace(/^\./, ''); // remove leading dot
       const hash = calculateFunctionHashWithPath(obj, path);
 
-      assert(!callbackRegistry[hash], `Callback with hash ${hash} already registered`);
+      assert(!callbacksRegistry[hash], `Callback with hash ${hash} already registered`);
       // register in global registry
-      callbackRegistry[hash] = obj;
+      callbacksRegistry[hash] = obj as CallbackFunction<any, any[], any>;
 
-      const cbEx = obj as CallbackFunctionEx<any, any, any>;
+      const cbEx = obj as CallbackFunctionEx<any, any[], any>;
       cbEx.origin = cbEx;
       cbEx.hash = hash;
 
@@ -230,7 +230,7 @@ export async function executeCallback(
     paramsJson = sessionData.params;
   }
 
-  const callback = callbackRegistry[hash];
+  const callback = callbacksRegistry[hash];
   if (!callback) {
     throw new Error(`Callback ${hash} not found in registry`);
   }
@@ -249,7 +249,8 @@ export function isCurriedCallback(filter: any): filter is CurriedCallback<any> {
   return typeof filter === 'function' && 'toCallbackData' in filter;
 }
 
-export const getSessionData = (ctx: any): CallbackSessionData => (ctx as any)._getSessionData(ctx);
+export const getSessionData = (ctx: Context): CallbackSessionData =>
+  (ctx as any)._getSessionData(ctx);
 
 export async function handleText(ctx: Context, next: () => Promise<void>): Promise<void> {
   const text = ctx.message?.text;
@@ -298,7 +299,10 @@ function generateHash(params: string): string {
  * @param cbData The callback data
  * @returns A shorter session-based reference
  */
-export function storeCallbackData(ctx: SessionFlavor<any>, cbData: string): string {
+export function storeCallbackData<Ctx extends Context & SessionFlavor<any>>(
+  ctx: Ctx,
+  cbData: string,
+): string {
   const [, hash, paramsJson] = splitCallbackData(cbData);
 
   if (!paramsJson) {
@@ -335,9 +339,9 @@ export const Button = {
   /**
    * Create a button with callback data (works for both inline and reply)
    */
-  cb: <Ctx extends Context = Context>(
+  cb: <R = void, T extends any[] = any[], Ctx extends Context = Context>(
     text: string,
-    callback: CallbackFunctionEx<any, [], Ctx>,
+    callback: CallbackFunctionEx<R, T, Ctx>,
   ): InlineKeyboardButton.CallbackButton => {
     const data = callback.toCallbackData();
     return {

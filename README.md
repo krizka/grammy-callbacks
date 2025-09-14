@@ -2,6 +2,37 @@
 
 Callback handling for Grammy Telegram bots. No callback data strings, no parsing, just direct function calls with parameters.
 
+```ts
+// Direct function binding
+const handlers = cbs({
+  async editUser(ctx /* : YourBotContextType */, userId: number) {
+    // ctx already typed
+    // ...user operations
+
+    // call handlers directly by passing ctx!
+    await handlers.someOtherHandler(ctx);
+  },
+
+  async someOtherHandler(ctx) {
+
+  }
+});
+
+ctx.reply('text', {
+  reply_keyboard: InlineKeyboard.from([
+    // bind our handler to the button with some curried param.
+    [Button.cb('Edit User', handlers.editUser(123))], // Inline button 'Edit User' will call `handlers.editUser(123)`
+    [handlers.otherHandler().button('Handle other')], // other ofrmat of button binding
+  ]),
+});
+ctx.reply('text', {
+  reply_keyboard: Keyboard.from([
+    [handlers.otherHandler().button('Handle other')], // 
+  ])
+
+// when user activates the button - we intercept callback_data, and call handler with exact curried params
+```
+
 ## Key Benefits
 
 **No callback data management** - Bind functions directly to buttons instead of creating strings like `"edit_user_123"` and parsing them later.
@@ -12,37 +43,9 @@ Callback handling for Grammy Telegram bots. No callback data strings, no parsing
 
 **Type-safe** - Full TypeScript support with proper parameter type checking.
 
-## Before and After
-
-```typescript
-// Before: Manual callback data handling
-  async function editUser(ctx: Context, userId: number) {
-    // ...user operations
-  }
-
-const button = InlineKeyboard.text('Edit User', 'edit_user_123');
-bot.on('callback_query', (ctx) => {
-  const [action, userId] = ctx.callbackQuery.data.split('_');
-  if (action === 'edit' && userId) {
-    await editUser(ctx, parseInt(userId));
-  }
-});
-ctx.reply('text', { reply_keyboard: InlineKeyboard.from([[button]]) })
-
-// After: Direct function binding
-const handlers = cbs({ 
-  async editUser(ctx, userId: number) { // ctx already typed
-    // ...user operations
-  }
- });
- // bind our handler to the button with some curried param.
-const button = Button.cb('Edit User', handlers.editUser(123));
-ctx.reply('text', { reply_keyboard: InlineKeyboard.from([[button]]) })
-// when user activates the button - we intercept callback_data, and call handler with exact curried params
-```
-
 Works with any data size:
-```typescript
+
+```ts
 const largeUserData = { id: 123, preferences: {...}, metadata: {...} };
 const button = Button.cb('Edit User', handlers.editUser(largeUserData));
 ```
@@ -56,7 +59,7 @@ npm install grammy-callbacks grammy
 ## Requirements
 
 ⚠️ **Grammy Callbacks requires session middleware to be configured.**
-The library stores callback data and wait states in the session, 
+The library stores callback data and wait states in the session,
 so you must set up Grammy's session middleware before using this package.
 Instead - it will warn you and use internal caches
 
@@ -86,15 +89,15 @@ const handlers = cbs({
     await ctx.answerCallbackQuery();
     await ctx.reply(`Hello ${name}! You are ${age} years old.`);
   },
-  
+
   async greetSomeoneSpecial(ctx) {
     // use as simple handlers by passing ctx as first param.
-    await handlers.greetUser(ctx, 'Special', 42); 
+    await handlers.greetUser(ctx, 'Special', 42);
     // or by currying
     await handlers.greetUser('Special', 42)(ctx);
     // or
     await handlers.greetUser('Special')(42)(ctx);
-  }
+  },
 });
 
 // Use curried handlers in inline keyboard
@@ -103,9 +106,9 @@ bot.command('start', async (ctx) => {
     reply_markup: {
       inline_keyboard: [
         [Button.cb('Greet John (25)', handlers.greetUser('John', 25))], // use helper
-        [handlers.greetUser('Jane', 30).button('Greet Jane (30)')], // or direct call 
-      ]
-    }
+        [handlers.greetUser('Jane', 30).button('Greet Jane (30)')], // or direct call
+      ],
+    },
   });
 });
 
@@ -126,7 +129,7 @@ const handlers = cbs({
     if (extra) {
       await ctx.reply(`Extra info: ${extra}`);
     }
-  }
+  },
 });
 
 // Create specialized versions
@@ -144,7 +147,6 @@ const keyboard = [
 // Pass context as first param and call immediately as simple callback function:
 await deleteUser(ctx, 456);
 await handlers.handleUserAction(ctx, 'edit', 456, 'extra');
-
 ```
 
 ### Organizing Handlers
@@ -166,14 +168,14 @@ const handlers = cbs({
       },
       async email(ctx, id: number, newEmail: string) {
         await ctx.reply(`Changing user ${id} email to: ${newEmail}`);
-      }
-    }
+      },
+    },
   },
   admin: {
     async ban(ctx, userId: number, reason: string) {
       await ctx.reply(`Banned user ${userId}: ${reason}`);
-    }
-  }
+    },
+  },
 });
 
 // Use with partial application
@@ -184,7 +186,7 @@ const editUser456Name = handlers.user.edit.name(456, 'NewName');
 const keyboard = [
   [Button.cb('Create John', createJohn())],
   [Button.cb('Rename User 456', editUser456Name())],
-  [Button.cb('Ban Spammer', handlers.admin.ban(789, 'spam'))]
+  [Button.cb('Ban Spammer', handlers.admin.ban(789, 'spam'))],
 ];
 ```
 
@@ -204,10 +206,10 @@ const handlers = cbs({
   },
 
   async askForName(ctx, greeting: string) {
-    await ctx.reply('What\'s your name?');
+    await ctx.reply("What's your name?");
     // Wait for text input and pass it to handleNameInput
     wait(ctx, handlers.handleNameInput(greeting));
-  }
+  },
 });
 
 bot.command('introduce', async (ctx) => {
@@ -227,19 +229,21 @@ const handlers = cbs({
   async promptWithOptions(ctx) {
     await ctx.reply('Send me a message or click a button:', {
       reply_markup: {
-        inline_keyboard: [[
-          Button.cb('Option A', handlers.handleResponse('You chose', 'Option A')),
-          Button.cb('Option B', handlers.handleResponse('You chose', 'Option B'))
-        ]]
-      }
+        inline_keyboard: [
+          [
+            Button.cb('Option A', handlers.handleResponse('You chose', 'Option A')),
+            Button.cb('Option B', handlers.handleResponse('You chose', 'Option B')),
+          ],
+        ],
+      },
     });
-    
+
     // Wait for either text message or callback query
     wait(ctx, ['message:text', 'callback_query:data'], handlers.handleResponse('You sent'), {
       cancelKeyword: '/cancel',
-      timeoutMs: 30000
+      timeoutMs: 30000,
     });
-  }
+  },
 });
 ```
 
@@ -248,6 +252,7 @@ const handlers = cbs({
 ### Core Functions
 
 #### `cbs(callbacksObj)`
+
 Deep conversion of nested callback objects to curried versions. This is the main function you'll use to register callbacks.
 
 ```typescript
@@ -255,8 +260,8 @@ const handlers = cbs({
   user: {
     async edit(ctx, param1: string, param2: number) {
       // Handler logic
-    }
-  }
+    },
+  },
 });
 
 // Returns curried callbacks that can be partially applied
@@ -265,7 +270,9 @@ const fullHandler = partialHandler(42);
 ```
 
 #### `bindCbs()`
+
 Returns a function with your own Context type, bound to all the handlers, it will create. It can convert callback objects to curried versions with a specific context type.
+
 ```typescript
 // bot-context.ts – Define your custom context type
 export type MyBotContext = Context & {
@@ -280,43 +287,52 @@ export const cbs = bindCbs<MyBotContext>();
 import { cbs } from './bot-context';
 // Now all handlers will be typed with your custom context
 const handlers = cbs({
-  async saveUser(ctx) { // ctx: MyBotContext
+  async saveUser(ctx) {
+    // ctx: MyBotContext
     // ctx.user and ctx.db are fully typed here
     await ctx.db.save(ctx.user);
     await ctx.reply(`Saved user ${ctx.user.name}`);
   },
-  
-  async updateProfile(ctx, newName: string) { // ctx: MyBotContext
+
+  async updateProfile(ctx, newName: string) {
+    // ctx: MyBotContext
     // Full type safety with custom context
     ctx.user.name = newName;
     await ctx.db.update(ctx.user);
-  }
+  },
 });
 ```
 
 #### `executeCallback(ctx, callbackData, ...args)`
+
 Execute a callback from callback data string.
 
 ### Wait Functions
 
 #### `wait(ctx, handler, options?)`
+
 Wait for user input with default text message filter.
 
 #### `wait(ctx, filter, handler)`
+
 Wait for user input with custom filter.
 
 #### `wait(ctx, filter, handler, options?)`
+
 Wait for user input with custom filter and options.
 
 #### `waitMiddleware(ctx, next)`
+
 Middleware to handle wait responses. Must be added to your bot.
 
 #### `clearWaitState(ctx)`
+
 Manually clear the wait state.
 
 ### Button Helpers
 
 #### `Button.cb(text, callbackData)`
+
 Create an inline keyboard button with callback data.
 
 ```typescript
@@ -327,22 +343,25 @@ const button = Button.cb('Click me', handlers.myHandler('param'));
 ### Middleware
 
 #### `callbackMiddleware(ctx, next)`
+
 Main middleware for handling callback queries. Must be added to your bot.
 
 ## Types
 
 ### `CurriedCallback<R, T, Ctx>`
+
 A curried callback function type.
 
 ### `WaitOptions`
+
 Options for configuring wait behavior:
 
 ```typescript
 interface WaitOptions {
   // validator handler to pre-filter handled messages
   validator?: CurriedCallback<boolean | string>;
-  // array of telegram update types, you want to accept in handler: 
-  filter?: FilterQuery[];  // ['message:text', 'callback_query:data', 'message:picture']
+  // array of telegram update types, you want to accept in handler:
+  filter?: FilterQuery[]; // ['message:text', 'callback_query:data', 'message:picture']
   messageId?: number;
   // text to send to cancel input wait
   cancelKeyword?: string;
@@ -374,11 +393,10 @@ import { session } from 'grammy';
 bot.use(session({}));
 ```
 
-
 ## Contributing
 
 Contributions are welcome! Please read our contributing guidelines and submit pull requests.
 
 ## License
 
-MIT 
+MIT

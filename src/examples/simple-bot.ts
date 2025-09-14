@@ -41,7 +41,7 @@ const handlers = cbs({
             [handlers.profile.editName().button('✏️ Edit Name')],
             [Button.cb('📧 Edit Email', handlers.profile.editEmail())],
             [Button.cb('🏠 Back to Home', handlers.home.show())],
-            [handlers.profile.withParam('test',).button('With param')],
+            [handlers.profile.withParam('test').button('With param')],
             [InlineKeyboard.text('🔄 Refresh', 'refresh')],
           ]),
           parse_mode: 'Markdown',
@@ -50,6 +50,21 @@ const handlers = cbs({
       await ctx.answerCallbackQuery('📋 Profile loaded');
     },
 
+    async withCurrying(ctx) {
+
+      const handler = handlers.profile.withCurryingParam('param1 value');
+
+      await ctx.reply('With currying', {
+        reply_markup: {
+          inline_keyboard: [[handler('param2 value').button('With currying')]],
+        },
+      });
+    },
+
+    async withCurryingParam(ctx, param1: string, param2: string) {
+      ctx.reply(`With currying: ${param1} ${param2}`);
+    },
+    
     async editName(ctx) {
       await ctx.editMessageText('✏️ **Edit Name**\n\nPlease send your new name:', {
         reply_markup: {

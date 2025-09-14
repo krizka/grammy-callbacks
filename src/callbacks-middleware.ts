@@ -1,6 +1,11 @@
 import { SessionFlavor } from 'grammy';
-import { BotContextSymbol, executeCallback, getSessionData, handleText } from './callback-registry';
-import { CallbackContext, CallbackSessionData, CallbacksOptions } from './callback-types';
+import {
+  BotContextSymbol,
+  executeCallback,
+  getSessionData,
+  handleText,
+} from './callbacks-registry';
+import { CallbackContext, CallbackSessionData, CallbacksOptions } from './callbacks-types';
 import type { Bot, Context } from './lib-adapter';
 
 export function initialCallbackData(): CallbackSessionData {
@@ -31,17 +36,23 @@ export function setupCallbacks<Ctx extends Context>(
   const _getSessionData = options?.getSessionData ?? defaultGetSessionData;
 
   bot.api.config.use(async (call, method, payload: any, signal) => {
-    if (payload.reply_markup?.keyboard && contextCache[payload.chat_id]) {
+    if (payload.reply_markup?.keyboard) {
       const ctx = contextCache[payload.chat_id];
-      const buttons = payload.reply_markup.keyboard.flat();
-      buttons.forEach((button: any) => {
-        const data = button._callback_data || button.callback_data;
-        if (data) {
-          getSessionData(ctx).reply[button.text] = data;
-          delete button._callback_data;
-          delete button.callback_data;
-        }
-      });
+      if (ctx) {
+        const buttons = payload.reply_markup.keyboard.flat();
+        buttons.forEach((button: any) => {
+          const data = button._callback_data || button.callback_data;
+          if (data) {
+            getSessionData(ctx).reply[button.text] = data;
+            delete button._callback_data;
+            delete button.callback_data;
+          }
+        });
+      } else {
+        console.warn(
+          `Context not found for chat ${payload.chat_id}, maybe you forgot to await api operation`,
+        );
+      }
     }
 
     return await call(method, payload, signal);
@@ -60,7 +71,10 @@ export function setupCallbacks<Ctx extends Context>(
     Object.defineProperty(ctx, BotContextSymbol, { value: true, enumerable: false });
     await next();
 
-    if (contextCache[fromId] === ctx) delete contextCache[fromId];
+    // save context for 1 minute to wait for reply messages, if it was not awaited
+    setTimeout(() => {
+      if (contextCache[fromId] === ctx) delete contextCache[fromId];
+    }, 60000);
   });
 
   bot.on('message:text', handleText);
