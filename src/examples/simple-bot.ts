@@ -51,7 +51,6 @@ const handlers = cbs({
     },
 
     async withCurrying(ctx) {
-
       const handler = handlers.profile.withCurryingParam('param1 value');
 
       await ctx.reply('With currying', {
@@ -64,7 +63,7 @@ const handlers = cbs({
     async withCurryingParam(ctx, param1: string, param2: string) {
       ctx.reply(`With currying: ${param1} ${param2}`);
     },
-    
+
     async editName(ctx) {
       await ctx.editMessageText('✏️ **Edit Name**\n\nPlease send your new name:', {
         reply_markup: {

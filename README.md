@@ -73,7 +73,7 @@ bot.use(session({}));
 
 ```typescript
 import { Bot, session } from 'grammy';
-import { cbs, callbackMiddleware, Button } from 'grammy-callbacks';
+import { cbs, callbackMiddleware, Button, waitMiddleware } from 'grammy-callbacks';
 
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 
@@ -81,7 +81,8 @@ const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 bot.use(session({}));
 
 // Setup callback middleware
-bot.use(callbackMiddleware);
+setupCallbacks(bot);
+bot.use(waitMiddleware)
 
 // Define callback handlers
 const handlers = cbs({
@@ -201,14 +202,14 @@ import { cbs, wait, waitMiddleware } from 'grammy-callbacks';
 bot.use(waitMiddleware);
 
 const handlers = cbs({
-  async handleNameInput(ctx, greeting: string, name: string) {
-    await ctx.reply(`${greeting}, ${name}! Nice to meet you.`);
-  },
-
   async askForName(ctx, greeting: string) {
     await ctx.reply("What's your name?");
     // Wait for text input and pass it to handleNameInput
     wait(ctx, handlers.handleNameInput(greeting));
+  },
+
+  async handleNameInput(ctx, greeting: string, name: string) {
+    await ctx.reply(`${greeting}, ${name}! Nice to meet you.`);
   },
 });
 
@@ -231,8 +232,8 @@ const handlers = cbs({
       reply_markup: {
         inline_keyboard: [
           [
-            Button.cb('Option A', handlers.handleResponse('You chose', 'Option A')),
-            Button.cb('Option B', handlers.handleResponse('You chose', 'Option B')),
+            InlineKeyboard.text('Option A', 'Option A')),
+            InlineKeyboard.text('Option B', 'Option B')),
           ],
         ],
       },
@@ -342,9 +343,9 @@ const button = Button.cb('Click me', handlers.myHandler('param'));
 
 ### Middleware
 
-#### `callbackMiddleware(ctx, next)`
+#### `setupCallbacks(bot)`
 
-Main middleware for handling callback queries. Must be added to your bot.
+Main middleware for handling callback queries. Must be called on your bot.
 
 ## Types
 
