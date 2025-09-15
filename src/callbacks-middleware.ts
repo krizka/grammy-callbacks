@@ -1,11 +1,10 @@
-import { SessionFlavor } from 'grammy';
 import {
   BotContextSymbol,
   executeCallback,
   getSessionData,
   handleText,
 } from './callbacks-registry';
-import { CallbackContext, CallbackSessionData, CallbacksOptions } from './callbacks-types';
+import { CallbackSessionData, CallbacksOptions } from './callbacks-types';
 import type { Bot, Context } from './lib-adapter';
 
 export function initialCallbackData(): CallbackSessionData {

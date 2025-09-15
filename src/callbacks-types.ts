@@ -22,8 +22,8 @@ export interface CallbackFunctionEx<
   T extends any[] = any[],
   Ctx extends Context = Context,
 > extends CallbackFunction<R, T, Ctx> {
-  origin: CallbackFunctionEx<R, T>;
-  curried?: CurriedCallback<R, T>;
+  origin: CallbackFunctionEx<R, T, Ctx>;
+  curried?: CurriedCallback<R, T, Ctx>;
   params?: any[];
   hash?: string;
   toCallbackData: () => string;
